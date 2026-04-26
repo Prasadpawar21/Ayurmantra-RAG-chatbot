@@ -1,74 +1,155 @@
 # RAG Model 2
 
-This repository is a Python FastAPI backend for a Supabase-powered RAG chatbot using Groq.
+`RAG Model 2` is a FastAPI backend for a user-specific health chatbot. It pulls authenticated user data from Supabase, builds in-memory RAG documents from profile and activity records, retrieves relevant context with `sentence-transformers`, and answers queries with Groq.
 
-## What is included
+## Stack
 
-- FastAPI backend server
-- Supabase auth validation via `Authorization: Bearer <token>`
-- Supabase user-context fetcher with profiles, assessments, food activity, and consultations
-- Document creation and in-memory RAG store per user
-- Groq embeddings and chat completions
-- CORS enabled for React frontend integration
+- Python 3.11
+- FastAPI + Uvicorn
+- Supabase REST + auth validation
+- `sentence-transformers` for embeddings
+- Groq chat completions for final answers
 
-## Run locally
+## Features
 
-1. Copy `.env.example` to `.env` and set your values.
-2. Install dependencies:
+- Validates Supabase bearer tokens on every protected request
+- Fetches user context from multiple Supabase tables
+- Builds user-specific documents for profile, assessments, food logs, consultations, and artifacts
+- Stores embeddings in memory per user for fast repeated queries
+- Supports context refresh on demand
+- Includes `/` and `/health` endpoints for platform health checks
+- Includes a `render.yaml` blueprint for deployment
 
-```powershell
-python -m pip install -r requirements.txt
+## Project structure
+
+```text
+.
+|-- main.py
+|-- requirements.txt
+|-- render.yaml
+|-- src/
+|   |-- api.py
+|   |-- auth.py
+|   |-- config.py
+|   |-- context_service.py
+|   `-- rag_service.py
+`-- .env.example
 ```
 
-3. Start the server:
+## Environment variables
 
-```powershell
-python main.py --port 5000
-```
-
-4. Open your frontend and call the backend at:
-
-- `GET http://localhost:5000/api/chatbot/context/me`
-- `POST http://localhost:5000/api/chatbot/query`
-
-## Required environment variables
+Required:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GROQ_API_KEY`
 
-## Frontend contract
+Optional:
 
-### Context endpoint
+- `APP_NAME`
+- `APP_ENV`
+- `ALLOWED_ORIGINS`
+- `EMBEDDING_MODEL_NAME`
+- `GROQ_CHAT_MODEL`
+- `CHATBOT_TOP_K`
+- `CHATBOT_CONTEXT_FOOD_LOOKBACK_DAYS`
+- `SUPABASE_PROFILE_TABLE`
+- `SUPABASE_CONSULTATION_TABLE`
+- `SUPABASE_FOODS_TABLE`
+- `SUPABASE_QUESTION_TABLE`
+- `SUPABASE_OPTION_TABLE`
+- `SUPABASE_QUIZ_SESSION_TABLE`
+- `SUPABASE_RESPONSE_TABLE`
+- `SUPABASE_RESULT_TABLE`
+- `SUPABASE_USER_ACTIVITY_TABLE`
+- `SUPABASE_USER_ACTIVITY_CREATED_AT_COLUMN`
 
-`GET /api/chatbot/context/me`
+Start from [.env.example](/e:/Dev/Projects/RAG_Model_2/.env.example).
 
-- Requires `Authorization: Bearer <token>` header
-- Returns full user context from Supabase
+## Local development
 
-### Query endpoint
+1. Create and activate a virtual environment.
+2. Install dependencies:
 
-`POST /api/chatbot/query`
+```bash
+pip install -r requirements.txt
+```
 
-Body:
+3. Copy `.env.example` to `.env` and fill in your real credentials.
+4. Run the API:
+
+```bash
+python main.py
+```
+
+The server listens on `http://localhost:5000` by default.
+
+## API endpoints
+
+### `GET /`
+
+Basic service metadata.
+
+### `GET /health`
+
+Deployment health check endpoint.
+
+### `GET /api/chatbot/context/me`
+
+Returns the authenticated user's normalized context.
+
+Headers:
+
+```http
+Authorization: Bearer <supabase_access_token>
+```
+
+### `POST /api/chatbot/query`
+
+Answers a question using the authenticated user's RAG context.
+
+Request body:
 
 ```json
 {
-  "query": "What should this user eat for digestion?",
+  "query": "What food patterns show up in this user's recent activity?",
   "refresh": false,
   "top_k": 5,
-  "score_threshold": 0.1
+  "score_threshold": 0.0
 }
 ```
 
-Response:
+Response fields:
 
 - `answer`
 - `retrieved_docs`
 - `prompt`
+- `user_id`
 
-## Notes
+## Deployment
 
-- This repo uses an in-memory vector store. For production, replace it with Redis, SQLite, or Chroma.
-- The Supabase auth layer validates tokens using the Supabase admin endpoint.
-- The prompt construction makes the chatbot answer only from retrieved user-specific documents.
+### Render
+
+This repo includes [render.yaml](/e:/Dev/Projects/RAG_Model_2/render.yaml), so Render can create the web service with:
+
+- Build command: `pip install --upgrade pip && pip install -r requirements.txt`
+- Start command: `uvicorn src.api:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/health`
+
+You still need to set the secret env vars in Render:
+
+- `ALLOWED_ORIGINS`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GROQ_API_KEY`
+
+## Production notes
+
+- The vector store is in memory only. It resets on every deploy, restart, or instance replacement.
+- `sentence-transformers` downloads model assets on first use, so cold starts can be noticeable on small instances.
+- This service depends on external APIs from both Supabase and Groq, so production reliability is partly downstream.
+- The service role key is highly privileged. Keep it only in server-side environment variables.
+
+## Recommended next upgrade
+
+For stronger production readiness, move embeddings and retrieval storage out of process into Redis, Postgres with pgvector, or another persistent vector store.

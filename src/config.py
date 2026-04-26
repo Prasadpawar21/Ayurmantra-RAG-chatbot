@@ -3,9 +3,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _get_allowed_origins() -> list[str]:
+    raw_value = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
+    return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
+
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+APP_NAME = os.getenv("APP_NAME", "Health RAG Chatbot API")
+APP_ENV = os.getenv("APP_ENV", "development")
+ALLOWED_ORIGINS = _get_allowed_origins()
 
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
 GROQ_CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "llama-3.1-8b-instant")

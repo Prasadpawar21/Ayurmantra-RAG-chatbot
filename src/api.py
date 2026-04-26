@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.config import ALLOWED_ORIGINS, APP_ENV, APP_NAME
 from src.auth import get_current_user, SupabaseUser
 from src.context_service import fetch_user_context
 from src.rag_service import answer_query, refresh_user_vector_store
@@ -13,10 +14,10 @@ from src.rag_service import answer_query, refresh_user_vector_store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Health RAG Chatbot API", version="0.1.0")
+app = FastAPI(title=APP_NAME, version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,6 +36,16 @@ class ChatQueryResponse(BaseModel):
     retrieved_docs: list[dict]
     prompt: str
     user_id: str
+
+
+@app.get("/")
+async def root() -> Any:
+    return {"service": APP_NAME, "status": "ok", "environment": APP_ENV}
+
+
+@app.get("/health")
+async def healthcheck() -> Any:
+    return {"status": "ok"}
 
 
 @app.get("/api/chatbot/context/me")

@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: rag-model-2
+    runtime: python
+    plan: starter
+    autoDeploy: true
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: Health RAG Chatbot API
+      - key: APP_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: EMBEDDING_MODEL_NAME
+        value: all-MiniLM-L6-v2
+      - key: GROQ_CHAT_MODEL
+        value: llama-3.1-8b-instant
+      - key: CHATBOT_TOP_K
+        value: "5"
+      - key: CHATBOT_CONTEXT_FOOD_LOOKBACK_DAYS
+        value: "30"
+      - key: SUPABASE_PROFILE_TABLE
+        value: profiles
+      - key: SUPABASE_CONSULTATION_TABLE
+        value: consultation_appointments
+      - key: SUPABASE_FOODS_TABLE
+        value: foods
+      - key: SUPABASE_QUESTION_TABLE
+        value: questions
+      - key: SUPABASE_OPTION_TABLE
+        value: options
+      - key: SUPABASE_QUIZ_SESSION_TABLE
+        value: quiz_sessions
+      - key: SUPABASE_RESPONSE_TABLE
+        value: responses
+      - key: SUPABASE_RESULT_TABLE
+        value: results
+      - key: SUPABASE_USER_ACTIVITY_TABLE
+        value: user_activity
+      - key: SUPABASE_USER_ACTIVITY_CREATED_AT_COLUMN
+        value: consumed_at

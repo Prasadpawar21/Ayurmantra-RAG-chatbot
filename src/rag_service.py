@@ -5,12 +5,7 @@ from typing import Any, Dict, List, Optional
 import groq
 from sentence_transformers import SentenceTransformer
 
-from src.config import (
-    EMBEDDING_MODEL_NAME,
-    GROQ_API_KEY,
-    GROQ_CHAT_MODEL,
-    CHATBOT_TOP_K,
-)
+from src.config import CHATBOT_TOP_K, EMBEDDING_MODEL_NAME, GROQ_API_KEY, GROQ_CHAT_MODEL
 from src.context_service import build_documents, fetch_user_context
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -88,7 +83,13 @@ def retrieve_user_documents(
     top_k: int = CHATBOT_TOP_K,
     score_threshold: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    logger.info("Retrieving documents for user %s query=%s top_k=%s score_threshold=%s", user_id, query, top_k, score_threshold)
+    logger.info(
+        "Retrieving documents for user %s query=%s top_k=%s score_threshold=%s",
+        user_id,
+        query,
+        top_k,
+        score_threshold,
+    )
     store = _get_user_store(user_id)
     if not store:
         logger.warning("No vector store available for user %s", user_id)
@@ -107,38 +108,22 @@ def retrieve_user_documents(
             scored.append({"document": item["document"], "score": similarity})
 
     scored.sort(key=lambda item: item["score"], reverse=True)
-    docs = [
-        {
-            **item["document"],
-            "score": item["score"],
-        }
-        for item in scored[:top_k]
-    ]
+    docs = [{**item["document"], "score": item["score"]} for item in scored[:top_k]]
     logger.info("Retrieved %d documents for user %s", len(docs), user_id)
     return docs
 
 
-# def _build_system_prompt() -> str:
-#     return (
-#         "You are an Ayurvedic health assistant. "
-#         "Use only the provided documents to answer the user question. "
-#         "Do not invent or hallucinate any private health details. "
-#         "If the answer is not present in the documents, say you cannot answer from the available user data."
-#     )
-
-def _build_system_prompt():
-    return """
-        You are a health assistant.
-
-        Rules:
-        - Answer ONLY using provided documents
-        - If food-related → analyze all food logs and summaries
-        - If appointment-related → consider ALL appointments, not just one
-        - Always aggregate information when needed
-        - Never say "no document" unless absolutely no data exists
-
-        Be specific and data-driven.
-        """
+def _build_system_prompt() -> str:
+    return (
+        "You are a health assistant.\n\n"
+        "Rules:\n"
+        "- Answer only using the provided documents.\n"
+        "- For food-related questions, analyze all relevant food logs and summaries.\n"
+        "- For appointment-related questions, consider all relevant consultations.\n"
+        "- Aggregate information when needed.\n"
+        '- If the answer is not supported by the documents, say "the information is not available."\n\n'
+        "Be specific and data-driven."
+    )
 
 
 def _build_context_summary(context: Dict[str, Any]) -> str:
@@ -244,11 +229,8 @@ def answer_query(
     )
 
     prompt = _build_prompt(user_id, query, context, retrieved_docs)
-
     if not retrieved_docs:
-        fallback = (
-            "I could not find enough user-specific data to answer that question based on the available documents."
-        )
+        fallback = "I could not find enough user-specific data to answer that question based on the available documents."
         logger.info("No documents retrieved for user %s; returning fallback response", user_id)
         return {
             "answer": fallback,
@@ -258,7 +240,6 @@ def answer_query(
 
     answer = _create_chat_response(prompt)
     logger.info("Generated answer for user %s: %s", user_id, answer)
-
     return {
         "answer": answer,
         "retrieved_docs": retrieved_docs,

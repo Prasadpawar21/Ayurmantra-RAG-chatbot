@@ -1,5 +1,7 @@
 import argparse
 import logging
+import os
+
 import uvicorn
 
 from src.api import app
@@ -19,7 +21,7 @@ def main() -> None:
     parser.add_argument(
         "--port",
         type=int,
-        default=5000,
+        default=int(os.getenv("PORT", "5000")),
         help="Port to run the FastAPI server on.",
     )
     args = parser.parse_args()
