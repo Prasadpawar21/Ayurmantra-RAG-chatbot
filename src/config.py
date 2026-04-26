@@ -16,7 +16,6 @@ APP_NAME = os.getenv("APP_NAME", "Health RAG Chatbot API")
 APP_ENV = os.getenv("APP_ENV", "development")
 ALLOWED_ORIGINS = _get_allowed_origins()
 
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
 GROQ_CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "llama-3.1-8b-instant")
 CHATBOT_TOP_K = int(os.getenv("CHATBOT_TOP_K", "5"))
 CHATBOT_CONTEXT_FOOD_LOOKBACK_DAYS = int(os.getenv("CHATBOT_CONTEXT_FOOD_LOOKBACK_DAYS", "30"))

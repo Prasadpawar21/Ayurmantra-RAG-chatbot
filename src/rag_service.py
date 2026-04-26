@@ -1,26 +1,18 @@
 import logging
-import math
+import re
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 import groq
-from sentence_transformers import SentenceTransformer
 
-from src.config import CHATBOT_TOP_K, EMBEDDING_MODEL_NAME, GROQ_API_KEY, GROQ_CHAT_MODEL
+from src.config import CHATBOT_TOP_K, GROQ_API_KEY, GROQ_CHAT_MODEL
 from src.context_service import build_documents, fetch_user_context
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 vector_store: Dict[str, List[Dict[str, Any]]] = {}
-_embedding_model: Optional[SentenceTransformer] = None
 _groq_client: Optional[groq.Client] = None
-
-
-def _get_embedding_model() -> SentenceTransformer:
-    global _embedding_model
-    if _embedding_model is None:
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    return _embedding_model
 
 
 def _get_groq_client() -> groq.Client:
@@ -30,44 +22,41 @@ def _get_groq_client() -> groq.Client:
     return _groq_client
 
 
-def _cosine_similarity(a: List[float], b: List[float]) -> float:
-    if not a or not b or len(a) != len(b):
+def _tokenize(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _build_index_entry(document: Dict[str, Any]) -> Dict[str, Any]:
+    text = str(document.get("text", ""))
+    tokens = _tokenize(text)
+    return {
+        "document": document,
+        "token_counts": Counter(tokens),
+        "token_set": set(tokens),
+        "length": len(tokens),
+    }
+
+
+def _score_document(query_tokens: List[str], query_counts: Counter[str], item: Dict[str, Any]) -> float:
+    if not query_tokens or not item["token_set"]:
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
 
-
-def _extract_texts(documents: List[Dict[str, Any]]) -> List[str]:
-    return [str(doc.get("text", "")) for doc in documents if doc.get("text")]
-
-
-def _embed_texts(texts: List[str]) -> List[List[float]]:
-    if not texts:
-        return []
-
-    model = _get_embedding_model()
-    embeddings = model.encode(texts, convert_to_numpy=False, show_progress_bar=False)
-    return [[float(value) for value in vector] for vector in embeddings]
+    overlap = sum(min(query_counts[token], item["token_counts"].get(token, 0)) for token in query_counts)
+    coverage = overlap / max(len(query_tokens), 1)
+    density = overlap / max(item["length"], 1)
+    phrase_bonus = 0.15 if " ".join(query_tokens) in str(item["document"].get("text", "")).lower() else 0.0
+    return round((coverage * 0.8) + (density * 0.2) + phrase_bonus, 6)
 
 
 def refresh_user_vector_store(user_id: str, context: Optional[Dict[str, Any]] = None) -> int:
-    logger.info("Refreshing vector store for user %s", user_id)
+    logger.info("Refreshing retrieval store for user %s", user_id)
     if context is None:
         context = fetch_user_context(user_id)
 
     documents = build_documents(context)
-    texts = _extract_texts(documents)
-    embeddings = _embed_texts(texts)
-    store: List[Dict[str, Any]] = []
-    for document, embedding in zip(documents, embeddings):
-        store.append({"document": document, "embedding": embedding})
-
+    store = [_build_index_entry(document) for document in documents if document.get("text")]
     vector_store[user_id] = store
-    logger.info("Stored %d vectors for user %s", len(store), user_id)
+    logger.info("Stored %d retrieval documents for user %s", len(store), user_id)
     return len(store)
 
 
@@ -95,15 +84,15 @@ def retrieve_user_documents(
         logger.warning("No vector store available for user %s", user_id)
         return []
 
-    query_embeddings = _embed_texts([query])
-    if not query_embeddings:
-        logger.warning("Embedding generation failed for query: %s", query)
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        logger.warning("Could not tokenize query: %s", query)
         return []
 
-    query_embedding = query_embeddings[0]
+    query_counts = Counter(query_tokens)
     scored: List[Dict[str, Any]] = []
     for item in store:
-        similarity = _cosine_similarity(item["embedding"], query_embedding)
+        similarity = _score_document(query_tokens, query_counts, item)
         if similarity >= score_threshold:
             scored.append({"document": item["document"], "score": similarity})
 

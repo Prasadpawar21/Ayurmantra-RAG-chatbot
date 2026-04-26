@@ -20,8 +20,6 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: EMBEDDING_MODEL_NAME
-        value: all-MiniLM-L6-v2
       - key: GROQ_CHAT_MODEL
         value: llama-3.1-8b-instant
       - key: CHATBOT_TOP_K

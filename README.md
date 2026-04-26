@@ -1,13 +1,13 @@
 # RAG Model 2
 
-`RAG Model 2` is a FastAPI backend for a user-specific health chatbot. It pulls authenticated user data from Supabase, builds in-memory RAG documents from profile and activity records, retrieves relevant context with `sentence-transformers`, and answers queries with Groq.
+`RAG Model 2` is a FastAPI backend for a user-specific health chatbot. It pulls authenticated user data from Supabase, builds in-memory RAG documents from profile and activity records, retrieves relevant context with a lightweight lexical retriever, and answers queries with Groq.
 
 ## Stack
 
 - Python 3.11
 - FastAPI + Uvicorn
 - Supabase REST + auth validation
-- `sentence-transformers` for embeddings
+- lightweight in-process lexical retrieval
 - Groq chat completions for final answers
 
 ## Features
@@ -15,7 +15,7 @@
 - Validates Supabase bearer tokens on every protected request
 - Fetches user context from multiple Supabase tables
 - Builds user-specific documents for profile, assessments, food logs, consultations, and artifacts
-- Stores embeddings in memory per user for fast repeated queries
+- Stores a lightweight retrieval index in memory per user for fast repeated queries
 - Supports context refresh on demand
 - Includes `/` and `/health` endpoints for platform health checks
 - Includes a `render.yaml` blueprint for deployment
@@ -49,7 +49,6 @@ Optional:
 - `APP_NAME`
 - `APP_ENV`
 - `ALLOWED_ORIGINS`
-- `EMBEDDING_MODEL_NAME`
 - `GROQ_CHAT_MODEL`
 - `CHATBOT_TOP_K`
 - `CHATBOT_CONTEXT_FOOD_LOOKBACK_DAYS`
@@ -146,10 +145,10 @@ You still need to set the secret env vars in Render:
 ## Production notes
 
 - The vector store is in memory only. It resets on every deploy, restart, or instance replacement.
-- `sentence-transformers` downloads model assets on first use, so cold starts can be noticeable on small instances.
+- Retrieval is lexical instead of embedding-based, which keeps memory usage low enough for smaller Render instances.
 - This service depends on external APIs from both Supabase and Groq, so production reliability is partly downstream.
 - The service role key is highly privileged. Keep it only in server-side environment variables.
 
 ## Recommended next upgrade
 
-For stronger production readiness, move embeddings and retrieval storage out of process into Redis, Postgres with pgvector, or another persistent vector store.
+For stronger production readiness, move retrieval storage out of process into Redis, Postgres with pgvector, or another persistent vector store if you want semantic search later.
